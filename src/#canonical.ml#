@@ -1,0 +1,46 @@
+(* Generate all tuples of length 4 over GF(3) except (0,0,0,0) *)
+
+let all_vectors () =
+  let rec loop a b c d acc =
+    if a = 3 then acc
+    else if b = 3 then loop (a+1) 0 0 0 acc
+    else if c = 3 then loop a (b+1) 0 0 acc
+    else if d = 3 then loop a b (c+1) 0 acc
+    else
+      let v = (a,b,c,d) in
+      let acc' = if v = (0,0,0,0) then acc else v :: acc in
+      loop a b c (d+1) acc'
+  in
+  loop 0 0 0 0 []
+
+(* Multiply a vector by a scalar in GF(3) *)
+let scalar_mul k (a,b,c,d) =
+  ((k*a) mod 3, (k*b) mod 3, (k*c) mod 3, (k*d) mod 3)
+
+(* Find canonical representative: first nonzero = 1 *)
+let canonical (a,b,c,d as v) =
+  let arr = [|a;b;c;d|] in
+  let rec find i =
+    if i = 4 then v
+    else if arr.(i) <> 0 then
+      if arr.(i) = 1 then v else scalar_mul 2 v
+    else find (i+1)
+  in
+  find 0
+
+(* Remove duplicates *)
+module VSet = Set.Make(struct
+  type t = int*int*int*int
+  let compare = compare
+end)
+
+let points =
+  List.fold_left (fun acc v -> VSet.add (canonical v) acc)
+    VSet.empty (all_vectors ())
+
+let () =
+  VSet.iter (fun (a,b,c,d) ->
+    Printf.printf "(%d,%d,%d,%d)\n" a b c d
+  ) points;
+
+  Printf.printf "Total points: %d\n" (VSet.cardinal points)
