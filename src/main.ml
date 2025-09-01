@@ -2,7 +2,7 @@ open Array
 open String
 open List
 
-(* computes the points and lines from GF(rk)^(dim+1) for dim=3 and rk=13 *)
+(* computes the points and lines from GF(rk)^(dim+1) for dim=3 and rk=23 *)
 exception Arguments_wrong
 
 let enumerate max =
@@ -119,6 +119,12 @@ let nb_points_per_line n q = q+1
 let nb_lines_per_spread n q = nb_points n q / nb_points_per_line n q
 let nb_spreads_per_packing n q = nb_lines n q / nb_lines_per_spread n q
 
+let list_elements c n = List.fold_right (fun x y -> (cat (cat (cat " | " c) (string_of_int x)) y)) (enumerate n) ".\n";;
+let list_incid p l =
+let indices li = List.fold_right (fun x y -> cat (cat " | P" (string_of_int x)) y) (List.map (fun x -> match (List.find_index ((=) x) p) with Some t -> t | None -> failwith "find_index") li) "" in 
+  List.fold_right (fun x y -> (cat "| L" (cat (string_of_int x) (cat (" => match p with ") (cat (indices (List.nth l x)) (cat " => true | _ => false end\n" y)))))) (enumerate (List.length l)) "   end.\n";;
+
+
 let infos_pg n q =
   let _ = print_string (cat "#points = " (cat (string_of_int (nb_points n q)) "\n")) in
   let _ = print_string (cat "#lines = "  (cat (string_of_int (nb_lines n q)) "\n")) in
@@ -126,7 +132,7 @@ let infos_pg n q =
   let _ = print_string (cat "#lines_per_spread = " (cat (string_of_int (nb_lines_per_spread n q)) "\n")) in 
   let _ = print_string (cat "#spreads_per_packing = " (cat (string_of_int (nb_spreads_per_packing n q)) "\n")) in
                                                                    ()
-
+let nl f = output_string f "\n"
 
 let main () =
   let _ = print_string "This is genPG, a Rocq specification generator for finite projective spaces of the shape PG(n,q).\n" in
@@ -140,6 +146,46 @@ let main () =
   let l = lines n q in
   let _ = print_string (cat "List.length (points " (cat (string_of_int n) (cat " " (cat (string_of_int q) (cat ") = " (cat (string_of_int(List.length p)) "\n")))))) in
   let _ = print_string (cat "List.length (lines " (cat (string_of_int n) (cat " " (cat (string_of_int q) (cat ") = " (cat (string_of_int(List.length l)) "\n")))))) in
+
+  let f = open_out filename in
+  let str_n = string_of_int n in
+  let str_q = string_of_int q in
+
+  let str_Proof = "Proof.\n" in 
+  let str_Qed = "Qed.\n" in 
+
+  let comment =
+    cat "(* formal description of points, lines and their incident relation for PG(" (cat str_n (cat "," (cat str_q ") *)\n"))) in
+
+  let str_Require = "Require Import PG_spec.\n" in
+
+  let str_points = cat "Inductive point : Set :=" (list_elements "P" (nb_points n q)) in
+
+  let str_lines = cat "Inductive line : Set :="  (list_elements "L" (nb_lines n q)) in
+
+  let str_incid = cat "Definition incid (p:point) (l:line) : bool := \n   match l with \n" (list_incid p l) in
+
+  (*  let str_incid_dec = "Lemma incid_dec : forall (A : point)(l : line), {incid A l} + {~incid A l}.\n" in *)
+
+  let str_l_from_points = "(*Definition l_from_points (x:point) (y:point) : line :=*)\n" in 
+  let _ = output_string f comment in
+  let _ = nl f in
+  let _ = output_string f str_Require in
+  let _ = nl f in
+  let _ = output_string f str_points in
+  let _ = nl f in
+  let _ = output_string f str_lines in
+  let _ = nl f in
+  let _ = output_string f str_incid in
+  let _ = nl f in
+  (*let _ = output_string f str_incid_dec in
+  let _ = output_string f str_Proof in
+  let _ = output_string f str_Qed in
+  let _ = nl f in*)
+  let _ = output_string f str_l_from_points in 
+
+
+  let _ = close_out f in
   print_string "-*- end of program -*-\n"
 ;;
 
