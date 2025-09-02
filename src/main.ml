@@ -119,17 +119,29 @@ let nb_points_per_line n q = q+1
 let nb_lines_per_spread n q = nb_points n q / nb_points_per_line n q
 let nb_spreads_per_packing n q = nb_lines n q / nb_lines_per_spread n q
 
+let find_some_index pred li = match find_index pred li with Some t -> t | None -> failwith "find_some_index"
+
+let l_from_points x y p l = find_some_index (fun t -> (List.mem (nth p x) t) && (List.mem (nth p y) t)) l
+
+
 let list_elements c n = List.fold_right (fun x y -> (cat (cat (cat " | " c) (string_of_int x)) y)) (enumerate n) ".\n";;
 let list_incid p l =
-let indices li = List.fold_right (fun x y -> cat (cat " | P" (string_of_int x)) y) (List.map (fun x -> match (List.find_index ((=) x) p) with Some t -> t | None -> failwith "find_index") li) "" in 
+let indices li = List.fold_right (fun x y -> cat (cat " | P" (string_of_int x)) y) (List.map (fun x -> match (List.find_index ((=) x) p) with Some t -> t | None -> failwith "find_index") li) "" in
   List.fold_right (fun x y -> (cat "| L" (cat (string_of_int x) (cat (" => match p with ") (cat (indices (List.nth l x)) (cat " => true | _ => false end\n" y)))))) (enumerate (List.length l)) "   end.\n";;
 
+let list_lfp p l = List.fold_right (fun x y -> (cat " | P" (cat (string_of_int x) (cat " => match y with \n" (cat (List.fold_right (fun t u -> (cat " | P" (cat (string_of_int t) (cat " => L" (cat (string_of_int (l_from_points x t p l)) u))))) (enumerate (List.length p)) " end\n") y))))) (enumerate (List.length p)) "end.\n"
+
+
+  (*(List.fold_right (fun a b -> cat (cat "P" (string_of_int a)) (cat ";" b)) (List.map (fun t -> find_some_index ((=) t) p) (nth l x)) "] "*)
+
+(*     List.fold_right (fun a b -> cat (string_of_int a) (cat ";" b)) (List.map (fun t -> find_index ((=) t) p) (nth l x)) "] "*)
+let list_pfl p l = List.fold_right (fun x y -> cat "\n | L" (cat (string_of_int x) (cat " => [" (cat (String.concat ";" (List.map (fun t -> cat "P" (string_of_int (find_some_index ((=) t) p))) (nth l x))) (cat "]" y))))) (enumerate (List.length l)) " end.\n"
 
 let infos_pg n q =
   let _ = print_string (cat "#points = " (cat (string_of_int (nb_points n q)) "\n")) in
   let _ = print_string (cat "#lines = "  (cat (string_of_int (nb_lines n q)) "\n")) in
   let _ = print_string (cat "#points_per_line = " (cat (string_of_int (nb_points_per_line n q)) "\n")) in
-  let _ = print_string (cat "#lines_per_spread = " (cat (string_of_int (nb_lines_per_spread n q)) "\n")) in 
+  let _ = print_string (cat "#lines_per_spread = " (cat (string_of_int (nb_lines_per_spread n q)) "\n")) in
   let _ = print_string (cat "#spreads_per_packing = " (cat (string_of_int (nb_spreads_per_packing n q)) "\n")) in
                                                                    ()
 let nl f = output_string f "\n"
@@ -151,13 +163,13 @@ let main () =
   let str_n = string_of_int n in
   let str_q = string_of_int q in
 
-  let str_Proof = "Proof.\n" in 
-  let str_Qed = "Qed.\n" in 
+  let str_Proof = "Proof.\n" in
+  let str_Qed = "Qed.\n" in
 
   let comment =
     cat "(* formal description of points, lines and their incident relation for PG(" (cat str_n (cat "," (cat str_q ") *)\n"))) in
 
-  let str_Require = "Require Import PG_spec.\n" in
+  let str_Require = "Require Import List.\nImport ListNotations.\nRequire Import PG.PG_spec.\n" in
 
   let str_points = cat "Inductive point : Set :=" (list_elements "P" (nb_points n q)) in
 
@@ -166,8 +178,24 @@ let main () =
   let str_incid = cat "Definition incid (p:point) (l:line) : bool := \n   match l with \n" (list_incid p l) in
 
   (*  let str_incid_dec = "Lemma incid_dec : forall (A : point)(l : line), {incid A l} + {~incid A l}.\n" in *)
+  let str_p2nat =
+    cat "Definition p2nat (l:point) := match l with " (List.fold_right (fun t v -> cat "| P" (cat (string_of_int t) (cat "=> " (cat (string_of_int t) (cat "%nat " v))))) (enumerate (List.length p)) "end.\n ") in
 
-  let str_l_from_points = "(*Definition l_from_points (x:point) (y:point) : line :=*)\n" in 
+  let str_l2nat =
+    cat "Definition l2nat (l:line) := match l with " (List.fold_right (fun t v -> cat "| L" (cat (string_of_int t) (cat "=> " (cat (string_of_int t) (cat "%nat " v))))) (enumerate (List.length l)) "end.\n ") in
+
+
+  let str_l_from_points = cat "Definition l_from_points (x:point) (y:point) : line := match x with \n" (list_lfp p l) in
+
+  let str_points_from_l = cat "Definition points_from_l (l:line) :=  match l with" (list_pfl p l) in
+
+  let str_def_eqp = "Definition eqp (x y: point) : bool := Nat.eqb (p2nat x) (p2nat y).\n" in
+  let str_def_lep = "Definition lep (x y: point) : bool := Nat.leb (p2nat x) (p2nat y).\n" in
+
+  let str_def_eql = "Definition eql (x y: line) : bool := Nat.eqb (l2nat x) (l2nat y).\n" in
+  let str_def_lel = "Definition lel (x y: line) : bool := Nat.leb (l2nat x) (l2nat y).\n" in
+
+  
   let _ = output_string f comment in
   let _ = nl f in
   let _ = output_string f str_Require in
@@ -182,8 +210,22 @@ let main () =
   let _ = output_string f str_Proof in
   let _ = output_string f str_Qed in
   let _ = nl f in*)
-  let _ = output_string f str_l_from_points in 
-
+  let _ = output_string f str_l_from_points in
+  let _ = nl f in
+  let _ = output_string f str_points_from_l in
+  let _ = nl f in
+  let _ = output_string f str_p2nat in
+  let _ = nl f in
+  let _ = output_string f str_def_eqp in
+  let _ = nl f in
+  let _ = output_string f str_def_lep in
+  let _ = nl f in
+  let _ = output_string f str_l2nat in
+  let _ = nl f in
+  let _ = output_string f str_def_eql in
+  let _ = nl f in
+  let _ = output_string f str_def_lel in
+  let _ = nl f in
 
   let _ = close_out f in
   print_string "-*- end of program -*-\n"
