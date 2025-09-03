@@ -131,6 +131,15 @@ let indices li = List.fold_right (fun x y -> cat (cat " | P" (string_of_int x)) 
 
 let list_lfp p l = List.fold_right (fun x y -> (cat " | P" (cat (string_of_int x) (cat " => match y with \n" (cat (List.fold_right (fun t u -> (cat " | P" (cat (string_of_int t) (cat " => L" (cat (string_of_int (l_from_points x t p l)) u))))) (enumerate (List.length p)) " end\n") y))))) (enumerate (List.length p)) "end.\n"
 
+(*let common l1 l2 = match l1 with [] -> failwith "error_common" | x::xs -> match l2 with [] -> failwith "error_common" | y::ys -> if (x=y) return x else *)
+
+let inter x t p l = let l1 = List.nth l x in
+                    let l2 = List.nth l t in
+                    let r = List.filter (fun x -> List.mem x l1) l2 in
+                    try find_some_index (fun x -> x=(List.hd r)) p with _ -> 14
+
+let list_a2 p l = List.fold_right (fun x y -> (cat " | L" (cat (string_of_int x) (cat " => match m with \n" (cat (List.fold_right (fun t u -> (cat " | L" (cat (string_of_int t) (cat " => P" (cat (string_of_int (inter x t p l)) u))))) (enumerate (List.length l)) " end\n") y))))) (enumerate (List.length l)) "end.\n"
+
 
   (*(List.fold_right (fun a b -> cat (cat "P" (string_of_int a)) (cat ";" b)) (List.map (fun t -> find_some_index ((=) t) p) (nth l x)) "] "*)
 
@@ -195,7 +204,9 @@ let main () =
   let str_def_eql = "Definition eql (x y: line) : bool := Nat.eqb (l2nat x) (l2nat y).\n" in
   let str_def_lel = "Definition lel (x y: line) : bool := Nat.leb (l2nat x) (l2nat y).\n" in
 
-  
+  let str_a2 = cat "Definition f_a2 (l:line) (m:line) := match l with \n" (list_a2 p l) in 
+
+
   let _ = output_string f comment in
   let _ = nl f in
   let _ = output_string f str_Require in
@@ -226,7 +237,9 @@ let main () =
   let _ = nl f in
   let _ = output_string f str_def_lel in
   let _ = nl f in
-
+  let _ = output_string f str_a2 in
+  let _ = nl f in
+  
   let _ = close_out f in
   print_string "-*- end of program -*-\n"
 ;;
