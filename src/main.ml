@@ -2,7 +2,10 @@ open Array
 open String
 open List
 
-(* computes the points and lines from GF(rk)^(dim+1) for dim=3 and rk=23 (fails for rk=29 so far) *)
+(* computes the points and lines of PG(dim, rk) from GF(rk)^(dim+1) *)
+(* it works successfully for (dim=3 and rk=23)  or (dim=7 and rk=3) *)
+(* (but fails for dim=3 and rk=29 so far) *)
+
 exception Arguments_wrong
 
 let enumerate max =
@@ -32,9 +35,6 @@ let rec scalar_mul k l max =
 let rec add p q max =
   match p with [] -> [] | x::xs -> match q with [] -> [] | y::ys -> ((x+y) mod max)::add xs ys max
 
-(*let rec mul p q max =
-  match p with [] -> [] | x::xs -> match q with [] -> [] | y::ys -> ((x*y) mod max)::mul xs ys max*)
-
 let rec multiplicative_inverse x max =
 List.hd (List.filter (fun t -> x*t mod max = 1) (List.tl (enumerate max)))
 
@@ -45,10 +45,6 @@ let normalize t max =
 
 let rec points n q =
   List.filter first_non_zero_is_one (all_vectors_non_zeros q (n+1));;
-
-(*let rec smaller p q =
-  match x with [] -> false
-             | x::xs -> match q with [] -> true | y::ys -> x<y || ((x=y) && (smaller xs ys))*)
 
 let rec smaller_int p q =
   match (p,q) with
@@ -67,13 +63,6 @@ let make_normalized_line x y rk =
   else
     let new_points = List.map (fun t -> (normalize (add x (scalar_mul t y rk) rk)) rk) (List.tl (enumerate rk)) in
     List.sort smaller_int (x::y::new_points)
-  (*let third = (add x y max) in
-  if first_non_zero_is_one third
-  then List.sort smaller_int [x; y; third]
-  else
-    if first_non_zero_is_one (add third third max)
-    then List.sort smaller_int [x; y; (add third third max)]
-    else failwith "cc"*)
 
 let rec given_one_point p1 l max acc =
   match l with [] -> acc
@@ -123,15 +112,22 @@ let find_some_index pred li = match find_index pred li with Some t -> t | None -
 
 let l_from_points x y p l = find_some_index (fun t -> (List.mem (nth p x) t) && (List.mem (nth p y) t)) l
 
-let list_elements c n = List.fold_right (fun x y -> (cat (cat (cat " | " c) (string_of_int x)) y)) (enumerate n) ".\n";;
+let list_elements c n = List.fold_right (fun x y -> (" | " ^ c ^ (string_of_int x) ^ y)) (enumerate n) ".\n";;
 
 let list_incid p l =
-let indices li = List.fold_right (fun x y -> cat (cat " | P" (string_of_int x)) y) (List.map (fun x -> match (List.find_index ((=) x) p) with Some t -> t | None -> failwith "find_index") li) "" in
-  List.fold_right (fun x y -> (cat "| L" (cat (string_of_int x) (cat (" => match p with ") (cat (indices (List.nth l x)) (cat " => true | _ => false end\n" y)))))) (enumerate (List.length l)) "   end.\n";;
+  let indices li = List.fold_right
+                     (fun x y -> (" | P" ^ (string_of_int x) ^ y))
+                     (List.map (fun x -> match (List.find_index ((=) x) p) with Some t -> t | None -> failwith "find_index") li) "" in
+  List.fold_right
+    (fun x y -> ("| L" ^ (string_of_int x) ^ " => match p with " ^ (indices (List.nth l x)) ^ " => true | _ => false end\n" ^ y))
+    (enumerate (List.length l)) "   end.\n";;
 
-let list_lfp p l = List.fold_right (fun x y -> (cat " | P" (cat (string_of_int x) (cat " => match y with \n" (cat (List.fold_right (fun t u -> (cat " | P" (cat (string_of_int t) (cat " => L" (cat (string_of_int (l_from_points x t p l)) u))))) (enumerate (List.length p)) " end\n") y))))) (enumerate (List.length p)) "end.\n"
-
-(*let common l1 l2 = match l1 with [] -> failwith "error_common" | x::xs -> match l2 with [] -> failwith "error_common" | y::ys -> if (x=y) return x else *)
+let list_lfp p l =
+  List.fold_right
+    (fun x y -> (" | P" ^  (string_of_int x) ^ " => match y with \n" ^
+                   (List.fold_right (fun t u -> (" | P" ^ (string_of_int t) ^  " => L" ^ (string_of_int (l_from_points x t p l)) ^ u))
+                      (enumerate (List.length p)) " end\n") ^ y))
+    (enumerate (List.length p)) "end.\n"
 
 let inter x t p l = let l1 = List.nth l x in
                     let l2 = List.nth l t in
@@ -143,28 +139,42 @@ let inter_bool x t p l = let l1 = List.nth l x in
                            let r = List.filter (fun x -> List.mem x l1) l2 in
                            try let _ = find_some_index (fun x -> x=(List.hd r)) p in true with _ -> false
 
-let list_a2 p l = List.fold_right (fun x y -> (cat " | L" (cat (string_of_int x) (cat " => match m with \n" (cat (List.fold_right (fun t u -> (cat " | L" (cat (string_of_int t) (cat " => P" (cat (string_of_int (inter x t p l)) u))))) (enumerate (List.length l)) " end\n") y))))) (enumerate (List.length l)) "end.\n"
+let list_a2 p l =
+  List.fold_right
+    (fun x y -> (" | L" ^ (string_of_int x) ^ " => match m with \n" ^
+                   (List.fold_right
+                      (fun t u -> " | L" ^ (string_of_int t) ^ " => P" ^ (string_of_int (inter x t p l)) ^ u)
+                      (enumerate (List.length l)) " end\n") ^ y))
+    (enumerate (List.length l))
+    "end.\n"
 
-
-  (*(List.fold_right (fun a b -> cat (cat "P" (string_of_int a)) (cat ";" b)) (List.map (fun t -> find_some_index ((=) t) p) (nth l x)) "] "*)
-
-(*     List.fold_right (fun a b -> cat (string_of_int a) (cat ";" b)) (List.map (fun t -> find_index ((=) t) p) (nth l x)) "] "*)
-let list_pfl p l = List.fold_right (fun x y -> cat "\n | L" (cat (string_of_int x) (cat " => [" (cat (String.concat ";" (List.map (fun t -> cat "P" (string_of_int (find_some_index ((=) t) p))) (nth l x))) (cat "]" y))))) (enumerate (List.length l)) " end.\n"
+let list_pfl p l = List.fold_right
+                     (fun x y -> "\n | L" ^ (string_of_int x) ^  " => [" ^  (String.concat ";" (List.map (fun t -> "P" ^ (string_of_int (find_some_index ((=) t) p))) (nth l x)) ^ "]" ^ y)) (enumerate (List.length l)) " end.\n"
 
 let traversal l1 l2 l3 p l = try List.hd (List.filter (fun x -> (inter_bool x l1 p l)&&(inter_bool x l2 p l)&&(inter_bool x l3 p l)) (enumerate (List.length l))) with _ -> failwith "traversal: should not happen"
 
 let list_a3_3 p l =
-  List.fold_right (fun x y -> (cat " | L" (cat (string_of_int x) (cat " => match l2 with \n" (cat
- (List.fold_right (fun t u -> (cat " | L" (cat (string_of_int t) (cat " => match l1 with \n" (cat (List.fold_right (fun a b -> let trav = (traversal x t a p l) in " | L" ^ (string_of_int a) ^ " =>  (L" ^ (string_of_int trav) ^ ", (P" ^ (string_of_int (inter a trav p l )) ^ ", P" ^ (string_of_int (inter t trav p l)) ^ ", P" ^ (string_of_int (inter x trav p l)) ^ "))" ^ b) (enumerate (List.length l)) " end\n") u))))) (enumerate (List.length l)) " end\n") y))))) (enumerate (List.length l)) "end.\n"
+  let el = enumerate (List.length l) in 
+  List.fold_right
+    (fun l1 y ->
+      " | L" ^ (string_of_int l1) ^ " => match l2 with \n" ^
+        (List.fold_right
+           (fun l2 u ->
+             " | L" ^ (string_of_int l2) ^ " => match l1 with \n" ^
+               (List.fold_right
+                  (fun l3 b ->
+                    let trav = (traversal l1 l2 l3 p l) in
+                    " | L" ^ (string_of_int l3) ^ " =>  (L" ^ (string_of_int trav) ^ ", (P" ^ (string_of_int (inter l3 trav p l )) ^ ", P" ^ (string_of_int (inter l2 trav p l)) ^ ", P" ^ (string_of_int (inter l1 trav p l)) ^ "))" ^ b) el " end\n") ^ u) el " end\n") ^ y) el "end.\n"
 
 
 let infos_pg n q =
-  let _ = print_string (cat "#points = " (cat (string_of_int (nb_points n q)) "\n")) in
-  let _ = print_string (cat "#lines = "  (cat (string_of_int (nb_lines n q)) "\n")) in
-  let _ = print_string (cat "#points_per_line = " (cat (string_of_int (nb_points_per_line n q)) "\n")) in
-  let _ = print_string (cat "#lines_per_spread = " (cat (string_of_int (nb_lines_per_spread n q)) "\n")) in
-  let _ = print_string (cat "#spreads_per_packing = " (cat (string_of_int (nb_spreads_per_packing n q)) "\n")) in
-                                                                   ()
+  let _ = print_string ("#points = " ^ (string_of_int (nb_points n q)) ^ "\n") in
+  let _ = print_string ("#lines = "  ^ (string_of_int (nb_lines n q)) ^ "\n") in
+  let _ = print_string ("#points_per_line = " ^ (string_of_int (nb_points_per_line n q)) ^ "\n") in
+  let _ = print_string ("#lines_per_spread = " ^  (string_of_int (nb_lines_per_spread n q)) ^ "\n") in
+  let _ = print_string ("#spreads_per_packing = " ^ (string_of_int (nb_spreads_per_packing n q)) ^ "\n") in
+  ()
+
 let nl f = output_string f "\n"
 
 let main () =
@@ -172,13 +182,13 @@ let main () =
   let _ = print_string "(c) 2025 - Nicolas Magaud, ICube UMR 7357 CNRS Université de Strasbourg\n" in
   let ((n,q),filename) = arguments Sys.argv in
   let _ =
-    print_string (cat "-*- generating PG(" (cat Sys.argv.(1) (cat "," (cat Sys.argv.(2) (cat ") in the file " (cat filename ". -*-\n")))))) in
+    print_string ("-*- generating PG(" ^ Sys.argv.(1) ^ "," ^ Sys.argv.(2) ^ ") in the file " ^ filename ^ ". -*-\n") in
   let _ = infos_pg n q in
 
   let p = points n q in
   let l = lines n q in
-  let _ = print_string (cat "List.length (points " (cat (string_of_int n) (cat " " (cat (string_of_int q) (cat ") = " (cat (string_of_int(List.length p)) "\n")))))) in
-  let _ = print_string (cat "List.length (lines " (cat (string_of_int n) (cat " " (cat (string_of_int q) (cat ") = " (cat (string_of_int(List.length l)) "\n")))))) in
+  let _ = print_string ("List.length (points " ^ (string_of_int n) ^ " " ^ (string_of_int q) ^ ") = " ^ (string_of_int(List.length p)) ^ "\n") in
+  let _ = print_string ("List.length (lines " ^ (string_of_int n) ^ " " ^ (string_of_int q) ^ ") = " ^ (string_of_int(List.length l)) ^ "\n") in
 
   let f = open_out filename in
   let str_n = string_of_int n in
@@ -187,28 +197,29 @@ let main () =
   let str_Proof = "Proof.\n" in
   let str_Qed = "Qed.\n" in
 
-  let comment =
-    cat "(* formal description of points, lines and their incident relation for PG(" (cat str_n (cat "," (cat str_q ") *)\n"))) in
+  let comment = "(* formal description of points, lines and their incident relation for PG(" ^ str_n ^ "," ^ str_q ^ ") *)\n" in
 
   let str_Require = "Require Import List.\nImport ListNotations.\nRequire Import PG.PG_spec.\n" in
 
-  let str_points = cat "Inductive point : Set :=" (list_elements "P" (nb_points n q)) in
+  let str_points = "Inductive point : Set :=" ^ (list_elements "P" (nb_points n q)) in
 
-  let str_lines = cat "Inductive line : Set :="  (list_elements "L" (nb_lines n q)) in
+  let str_lines = "Inductive line : Set :="  ^ (list_elements "L" (nb_lines n q)) in
 
-  let str_incid = cat "Definition incid (p:point) (l:line) : bool := \n   match l with \n" (list_incid p l) in
+  let str_incid = "Definition incid (p:point) (l:line) : bool := \n   match l with \n" ^ (list_incid p l) in
 
   (*  let str_incid_dec = "Lemma incid_dec : forall (A : point)(l : line), {incid A l} + {~incid A l}.\n" in *)
   let str_p2nat =
-    cat "Definition p2nat (l:point) := match l with " (List.fold_right (fun t v -> cat "| P" (cat (string_of_int t) (cat "=> " (cat (string_of_int t) (cat "%nat " v))))) (enumerate (List.length p)) "end.\n ") in
+    "Definition p2nat (l:point) := match l with " ^
+      (List.fold_right (fun t v -> "| P" ^ (string_of_int t) ^ "=> " ^ (string_of_int t) ^ "%nat " ^ v) (enumerate (List.length p)) "end.\n ") in
 
   let str_l2nat =
-    cat "Definition l2nat (l:line) := match l with " (List.fold_right (fun t v -> cat "| L" (cat (string_of_int t) (cat "=> " (cat (string_of_int t) (cat "%nat " v))))) (enumerate (List.length l)) "end.\n ") in
+    "Definition l2nat (l:line) := match l with " ^
+      (List.fold_right (fun t v -> "| L" ^ (string_of_int t) ^ "=> " ^ (string_of_int t) ^ "%nat " ^ v) (enumerate (List.length l)) "end.\n ") in
 
 
-  let str_l_from_points = cat "Definition l_from_points (x:point) (y:point) : line := match x with \n" (list_lfp p l) in
+  let str_l_from_points = "Definition l_from_points (x:point) (y:point) : line := match x with \n" ^ (list_lfp p l) in
 
-  let str_points_from_l = cat "Definition points_from_l (l:line) :=  match l with" (list_pfl p l) in
+  let str_points_from_l = "Definition points_from_l (l:line) :=  match l with" ^ (list_pfl p l) in
 
   let str_def_eqp = "Definition eqp (x y: point) : bool := Nat.eqb (p2nat x) (p2nat y).\n" in
   let str_def_lep = "Definition lep (x y: point) : bool := Nat.leb (p2nat x) (p2nat y).\n" in
@@ -216,9 +227,9 @@ let main () =
   let str_def_eql = "Definition eql (x y: line) : bool := Nat.eqb (l2nat x) (l2nat y).\n" in
   let str_def_lel = "Definition lel (x y: line) : bool := Nat.leb (l2nat x) (l2nat y).\n" in
 
-  let str_a2 = cat "Definition f_a2 (l:line) (m:line) := match l with \n" (list_a2 p l) in 
+  let str_a2 = "Definition f_a2 (l:line) (m:line) := match l with \n" ^ (list_a2 p l) in 
 
-  let str_a3_3 = cat "Definition f_a3_3 (l1:line) (l2:line) (l3:line) :=  match l3 with\n" (list_a3_3 p l) in 
+  let str_a3_3 = "Definition f_a3_3 (l1:line) (l2:line) (l3:line) :=  match l3 with\n" ^ (list_a3_3 p l) in 
 
   let _ = output_string f comment in
   let _ = nl f in
