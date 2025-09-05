@@ -1,5 +1,10 @@
 -Q . PG
 
 PG_spec.v
+lemmas_and_tactics.v
+
 PG_3_2.v
 PG_3_2_proofs.v
+
+PG_3_3.v
+#PG3_3_proofs.v

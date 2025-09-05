@@ -1,7 +1,7 @@
 Require Import ssreflect ssrfun ssrbool.
 
 Require Import PG.lemmas_and_tactics.
-Require Import  PG.PG_3_2.
+Require Import  PG.PG_3_3.
 
 (** a1_exists : existence of a line generated from 2 points *)
 

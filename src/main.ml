@@ -2,7 +2,7 @@ open Array
 open String
 open List
 
-(* computes the points and lines from GF(rk)^(dim+1) for dim=3 and rk=23 *)
+(* computes the points and lines from GF(rk)^(dim+1) for dim=3 and rk=23 (fails for rk=29 so far) *)
 exception Arguments_wrong
 
 let enumerate max =
@@ -102,9 +102,9 @@ let arguments args =
     let filename =
       if ((nb_args = 4)&&(Sys.argv.(3)="-o"))
       then Sys.argv.(4)
-      else cat "defaultPG_" (cat Sys.argv.(1) (cat "_" (cat Sys.argv.(2) ".v")))
+      else "defaultPG_" ^ Sys.argv.(1) ^  "_" ^ Sys.argv.(2) ^ ".v"
     in ((n,q),filename)
-  with _ ->  let _ = print_string (cat "usage: " (cat Sys.argv.(0) " n q [ -o <output.v> ]\n")) in exit(1)
+  with _ ->  let _ = print_string ("usage: " ^ Sys.argv.(0)^  " n q [ -o <output.v> ]\n") in exit(1)
 
 let rec pow a = function
   | 0 -> 1
@@ -123,8 +123,8 @@ let find_some_index pred li = match find_index pred li with Some t -> t | None -
 
 let l_from_points x y p l = find_some_index (fun t -> (List.mem (nth p x) t) && (List.mem (nth p y) t)) l
 
-
 let list_elements c n = List.fold_right (fun x y -> (cat (cat (cat " | " c) (string_of_int x)) y)) (enumerate n) ".\n";;
+
 let list_incid p l =
 let indices li = List.fold_right (fun x y -> cat (cat " | P" (string_of_int x)) y) (List.map (fun x -> match (List.find_index ((=) x) p) with Some t -> t | None -> failwith "find_index") li) "" in
   List.fold_right (fun x y -> (cat "| L" (cat (string_of_int x) (cat (" => match p with ") (cat (indices (List.nth l x)) (cat " => true | _ => false end\n" y)))))) (enumerate (List.length l)) "   end.\n";;
@@ -138,6 +138,11 @@ let inter x t p l = let l1 = List.nth l x in
                     let r = List.filter (fun x -> List.mem x l1) l2 in
                     try find_some_index (fun x -> x=(List.hd r)) p with _ -> 14
 
+let inter_bool x t p l = let l1 = List.nth l x in
+                           let l2 = List.nth l t in
+                           let r = List.filter (fun x -> List.mem x l1) l2 in
+                           try let _ = find_some_index (fun x -> x=(List.hd r)) p in true with _ -> false
+
 let list_a2 p l = List.fold_right (fun x y -> (cat " | L" (cat (string_of_int x) (cat " => match m with \n" (cat (List.fold_right (fun t u -> (cat " | L" (cat (string_of_int t) (cat " => P" (cat (string_of_int (inter x t p l)) u))))) (enumerate (List.length l)) " end\n") y))))) (enumerate (List.length l)) "end.\n"
 
 
@@ -145,6 +150,13 @@ let list_a2 p l = List.fold_right (fun x y -> (cat " | L" (cat (string_of_int x)
 
 (*     List.fold_right (fun a b -> cat (string_of_int a) (cat ";" b)) (List.map (fun t -> find_index ((=) t) p) (nth l x)) "] "*)
 let list_pfl p l = List.fold_right (fun x y -> cat "\n | L" (cat (string_of_int x) (cat " => [" (cat (String.concat ";" (List.map (fun t -> cat "P" (string_of_int (find_some_index ((=) t) p))) (nth l x))) (cat "]" y))))) (enumerate (List.length l)) " end.\n"
+
+let traversal l1 l2 l3 p l = try List.hd (List.filter (fun x -> (inter_bool x l1 p l)&&(inter_bool x l2 p l)&&(inter_bool x l3 p l)) (enumerate (List.length l))) with _ -> failwith "traversal: should not happen"
+
+let list_a3_3 p l =
+  List.fold_right (fun x y -> (cat " | L" (cat (string_of_int x) (cat " => match l2 with \n" (cat
+ (List.fold_right (fun t u -> (cat " | L" (cat (string_of_int t) (cat " => match l1 with \n" (cat (List.fold_right (fun a b -> let trav = (traversal x t a p l) in " | L" ^ (string_of_int a) ^ " =>  (L" ^ (string_of_int trav) ^ ", (P" ^ (string_of_int (inter a trav p l )) ^ ", P" ^ (string_of_int (inter t trav p l)) ^ ", P" ^ (string_of_int (inter x trav p l)) ^ "))" ^ b) (enumerate (List.length l)) " end\n") u))))) (enumerate (List.length l)) " end\n") y))))) (enumerate (List.length l)) "end.\n"
+
 
 let infos_pg n q =
   let _ = print_string (cat "#points = " (cat (string_of_int (nb_points n q)) "\n")) in
@@ -206,6 +218,7 @@ let main () =
 
   let str_a2 = cat "Definition f_a2 (l:line) (m:line) := match l with \n" (list_a2 p l) in 
 
+  let str_a3_3 = cat "Definition f_a3_3 (l1:line) (l2:line) (l3:line) :=  match l3 with\n" (list_a3_3 p l) in 
 
   let _ = output_string f comment in
   let _ = nl f in
@@ -239,7 +252,10 @@ let main () =
   let _ = nl f in
   let _ = output_string f str_a2 in
   let _ = nl f in
-  
+
+  let _ = output_string f str_a3_3 in
+  let _ = nl f in
+
   let _ = close_out f in
   print_string "-*- end of program -*-\n"
 ;;
